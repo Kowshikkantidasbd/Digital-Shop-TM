@@ -10,7 +10,14 @@ import {
   type FirebaseUser
 } from './firebase';
 
-const API_BASE = String((import.meta as any).env?.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const RAW_API_BASE = String(
+  (import.meta as any).env?.VITE_API_URL ||
+    (import.meta as any).env?.VITE_API_BASE_URL ||
+    ''
+)
+  .trim()
+  .replace(/\/+$/, '');
+const API_BASE = RAW_API_BASE.includes('YOUR-RENDER-SERVICE') ? '' : RAW_API_BASE;
 const TOKEN_STORAGE_KEY = 'elora-ba-token';
 
 export const buildAuthUrl = (path: string) => {
@@ -53,7 +60,7 @@ export function dispatchAuthChanged(user: UserType | null = null) {
 }
 
 const resolvedBaseUrl =
-  API_BASE || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+  API_BASE || (typeof window !== 'undefined' ? window.location.origin : '');
 
 export const betterAuthReact = createAuthClient({
   baseURL: resolvedBaseUrl,

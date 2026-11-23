@@ -21,12 +21,3 @@ npm run dev
    npx firebase-tools login
    npm run deploy:firebase
    ```
-
----
-## Standalone run (alada zip)
-```
-cp .env.example .env
-npm install
-npm run dev              # http://localhost:5173
-```
-Backend alada zip (`elora-backend`) port 5000-e chalu thaka lagbe. Production-e `.env`-e `VITE_API_BASE_URL=https://your-backend-url` dao.

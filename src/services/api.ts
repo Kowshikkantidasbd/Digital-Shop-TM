@@ -1,7 +1,14 @@
 import { authClient, authHeaders, buildAuthUrl, dispatchAuthChanged } from '../lib/auth-client';
 import { Coupon, User, Product, Order, ReturnRequest, AdBoard } from '../types';
 
-export const API_BASE_URL = String((import.meta as any).env?.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const RAW_API_BASE = String(
+  (import.meta as any).env?.VITE_API_URL ||
+    (import.meta as any).env?.VITE_API_BASE_URL ||
+    ''
+)
+  .trim()
+  .replace(/\/+$/, '');
+export const API_BASE_URL = RAW_API_BASE.includes('YOUR-RENDER-SERVICE') ? '' : RAW_API_BASE;
 export function apiUrl(path: string): string {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return API_BASE_URL ? `${API_BASE_URL}${cleanPath}` : cleanPath;
@@ -1268,6 +1275,7 @@ export const couponApi = {
     try {
       const res = await fetch(apiUrl('/api/coupons/validate'), {
         method: 'POST',
+        credentials: 'include',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ code: clean, subtotalBDT, email: userEmail })
       });
