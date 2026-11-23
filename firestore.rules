@@ -1,0 +1,143 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Deny all access by default unless explicitly permitted below
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Hardened Global Primitives
+    // -------------------------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'kowshikkantidas@gmail.com'
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprint: UserProfile
+    // Synchronized strictly with firebase-blueprint.json maxLength & pattern constraints
+    // -------------------------------------------------------------------------
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid',
+          'name',
+          'email',
+          'avatar',
+          'provider',
+          'role',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid',
+          'name',
+          'email',
+          'avatar',
+          'provider',
+          'role',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.uid is string &&
+        isValidId(data.uid) &&
+        data.name is string &&
+        data.name.size() >= 1 &&
+        data.name.size() <= 120 &&
+        data.email is string &&
+        data.email.size() >= 3 &&
+        data.email.size() <= 254 &&
+        data.avatar is string &&
+        data.avatar.size() <= 1024 &&
+        data.provider is string &&
+        data.provider in ['google'] &&
+        data.role is string &&
+        data.role in ['user', 'admin'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection: /users/{userId} (Contains PII: verified email)
+    // -------------------------------------------------------------------------
+    match /users/{userId} {
+      // PII Isolation: strictly owner or verified admin
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      // Never allow client collection scraping on PII collection
+      allow list: if false;
+
+      // Create: verified owner only, strict blueprint, non-admin role, server timestamps
+      allow create: if isSignedIn() &&
+        isVerified() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().email == request.auth.token.email &&
+        incoming().role == 'user' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      // Action-Based Update wrapped with validation blueprint
+      allow update: if isSignedIn() &&
+        isVerified() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        (
+          // Tier 1: Verified Admin override
+          (isAdmin() &&
+            incoming().uid == existing().uid &&
+            incoming().createdAt == existing().createdAt &&
+            incoming().updatedAt == request.time) ||
+          // Tier 2: Owner profile display sync action (only name, avatar, updatedAt mutable)
+          (isOwner(userId) &&
+            incoming().uid == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatar', 'updatedAt']) &&
+            incoming().uid == existing().uid &&
+            incoming().email == existing().email &&
+            incoming().provider == existing().provider &&
+            incoming().role == existing().role &&
+            incoming().createdAt == existing().createdAt &&
+            incoming().updatedAt == request.time)
+        );
+
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection: /admins/{adminId} (Read-only RBAC membership registry)
+    // -------------------------------------------------------------------------
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list, create, update, delete: if false;
+    }
+  }
+}

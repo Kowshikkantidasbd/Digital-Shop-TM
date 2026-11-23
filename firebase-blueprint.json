@@ -1,0 +1,101 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated shopper profile created and synchronized via Firebase Google Sign-In.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Authentication UID matching the document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name from Google profile or user update.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified Google email address (PII).",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "avatar": {
+          "type": "string",
+          "format": "uri",
+          "description": "Profile avatar URL.",
+          "maxLength": 1024
+        },
+        "provider": {
+          "type": "string",
+          "description": "Identity provider used for sign-in.",
+          "enum": ["google"]
+        },
+        "role": {
+          "type": "string",
+          "description": "Access role enforced by security rules (never self-escalated).",
+          "enum": ["user", "admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the user profile was first created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last profile update."
+        }
+      },
+      "required": [
+        "uid",
+        "name",
+        "email",
+        "avatar",
+        "provider",
+        "role",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminEntry": {
+      "title": "AdminEntry",
+      "description": "Server-managed allowlist document identifying store administrators by UID.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Administrator verified email address.",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when administrative privileges were granted."
+        }
+      },
+      "required": ["email", "grantedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Owner-isolated user profile documents containing PII (email) synchronized on Firebase Google Sign-In."
+    },
+    "/admins/{adminId}": {
+      "schema": {
+        "$ref": "#/entities/AdminEntry"
+      },
+      "description": "Read-only admin membership registry used by security rules for RBAC checks."
+    }
+  }
+}
